@@ -1,32 +1,84 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-  <title>Validador de Tickets</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Validador de Tickets - Feria de Emprendimiento</title>
+  <script src="https://unpkg.com/html5-qrcode" defer></script>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <h2>Escanear código QR</h2>
-  <video id="preview" width="300" height="200"></video>
-  <p id="resultado"></p>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center px-4 py-8">
 
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <div class="bg-white shadow-xl rounded-2xl p-6 max-w-md w-full text-center">
+    <h1 class="text-2xl font-bold mb-4 text-blue-700">🎟️ Validador de Tickets</h1>
+    <p class="text-gray-600 mb-2">Escanea tu código QR para validar tu acceso a la <strong>Feria de Emprendimiento</strong>.</p>
+
+    <div id="reader" class="mx-auto my-4 rounded-lg overflow-hidden border-2 border-blue-200"></div>
+
+    <div id="mensaje" class="text-center text-lg font-medium mt-4"></div>
+
+    <button id="reiniciar" class="mt-4 bg-blue-600 text-white py-2 px-4 rounded hidden">
+      Escanear otro
+    </button>
+  </div>
+
   <script>
-    const API_URL = 'https://script.google.com/macros/s/AKfycbzkO__WJztMUtVIenevfUXG0zjMec38N4KGAGjLbRRROqxYj5YOu5IqTrLsy5hEcf9BCA';
+    const API_URL = "https://script.google.com/macros/s/AKfycbXXXXXX/exec"; // ← Reemplaza con tu URL
+
+    const mensajeEl = document.getElementById("mensaje");
+    const reiniciarBtn = document.getElementById("reiniciar");
+    let html5QrCode;
+
+    function mostrarMensaje(texto, tipo = "info") {
+      const colores = {
+        info: "text-gray-800",
+        success: "text-green-600",
+        error: "text-red-600",
+        warning: "text-yellow-600"
+      };
+      mensajeEl.className = `mt-4 text-lg font-semibold ${colores[tipo]}`;
+      mensajeEl.textContent = texto;
+    }
+
+    function detenerScanner() {
+      html5QrCode.stop().then(() => {
+        document.getElementById("reader").innerHTML = "";
+        reiniciarBtn.classList.remove("hidden");
+      });
+    }
+
+    function escanearQR() {
+      html5QrCode = new Html5Qrcode("reader");
+      Html5Qrcode.getCameras().then(devices => {
+        if (devices && devices.length) {
+          html5QrCode.start(
+            devices[0].id,
+            { fps: 10, qrbox: 250 },
+            (qrCodeMessage) => {
+              detenerScanner();
+              validarTicket(qrCodeMessage.trim());
+            }
+          );
+        } else {
+          mostrarMensaje("No se detectó cámara", "error");
+        }
+      }).catch(err => mostrarMensaje("Error al acceder a la cámara", "error"));
+    }
 
     function validarTicket(id) {
       fetch(`${API_URL}?id=${id}`)
         .then(res => res.json())
         .then(data => {
           if (data.error) {
-            document.getElementById('resultado').textContent = "❌ Ticket no encontrado";
+            mostrarMensaje("❌ Ticket no encontrado", "error");
             return;
           }
-
           if (data.usado === "Sí") {
-            document.getElementById('resultado').textContent = "⚠️ Ticket ya ha sido usado";
+            mostrarMensaje("⚠️ Ticket ya ha sido utilizado", "warning");
           } else {
-            document.getElementById('resultado').textContent = `✅ Ticket válido | Valor: ${data.valor}`;
+            mostrarMensaje(`✅ Ticket válido — Valor: ${data.valor}`, "success");
 
-            // Aquí opcionalmente lo marcamos como usado
+            // Marcar como usado automáticamente
             fetch(API_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -34,25 +86,19 @@
             });
           }
         })
-        .catch(() => {
-          document.getElementById('resultado').textContent = "❌ Error al validar";
-        });
+        .catch(err => mostrarMensaje("❌ Error al validar el ticket", "error"));
     }
 
-    // Iniciar escáner
-    const html5QrCode = new Html5Qrcode("preview");
-    Html5Qrcode.getCameras().then(devices => {
-      if (devices && devices.length) {
-        html5QrCode.start(
-          devices[0].id,
-          { fps: 10, qrbox: 250 },
-          qrCodeMessage => {
-            html5QrCode.stop(); // Detener para evitar múltiples lecturas
-            validarTicket(qrCodeMessage);
-          }
-        );
-      }
+    reiniciarBtn.addEventListener("click", () => {
+      mensajeEl.textContent = "";
+      reiniciarBtn.classList.add("hidden");
+      escanearQR();
     });
+
+    escanearQR();
   </script>
+</body>
+</html>
+
 </body>
 </html>
