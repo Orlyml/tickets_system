@@ -48,7 +48,13 @@
           mostrarMensaje("No se encontró cámara", "error");
           return;
         }
-        const cameraId = devices[0].id;
+        let cameraId = devices[0].id;
+        for (let device of devices) {
+          if (/back|rear|environment/i.test(device.label)) {
+            cameraId = device.id;
+            break;
+          }
+        }
         scanner.start(
           cameraId,
           { fps: 10, qrbox: 250 },
