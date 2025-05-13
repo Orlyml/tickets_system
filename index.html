@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Validador de Tickets</title>
+</head>
+<body>
+  <h2>Escanear código QR</h2>
+  <video id="preview" width="300" height="200"></video>
+  <p id="resultado"></p>
+
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script>
+    const API_URL = 'https://script.google.com/macros/s/AKfycbzkO__WJztMUtVIenevfUXG0zjMec38N4KGAGjLbRRROqxYj5YOu5IqTrLsy5hEcf9BCA';
+
+    function validarTicket(id) {
+      fetch(`${API_URL}?id=${id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            document.getElementById('resultado').textContent = "❌ Ticket no encontrado";
+            return;
+          }
+
+          if (data.usado === "Sí") {
+            document.getElementById('resultado').textContent = "⚠️ Ticket ya ha sido usado";
+          } else {
+            document.getElementById('resultado').textContent = `✅ Ticket válido | Valor: ${data.valor}`;
+
+            // Aquí opcionalmente lo marcamos como usado
+            fetch(API_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: id })
+            });
+          }
+        })
+        .catch(() => {
+          document.getElementById('resultado').textContent = "❌ Error al validar";
+        });
+    }
+
+    // Iniciar escáner
+    const html5QrCode = new Html5Qrcode("preview");
+    Html5Qrcode.getCameras().then(devices => {
+      if (devices && devices.length) {
+        html5QrCode.start(
+          devices[0].id,
+          { fps: 10, qrbox: 250 },
+          qrCodeMessage => {
+            html5QrCode.stop(); // Detener para evitar múltiples lecturas
+            validarTicket(qrCodeMessage);
+          }
+        );
+      }
+    });
+  </script>
+</body>
+</html>
