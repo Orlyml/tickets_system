@@ -3,102 +3,107 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Validador de Tickets - Feria de Emprendimiento</title>
+  <title>Validador QR - Feria de Emprendimiento</title>
   <script src="https://unpkg.com/html5-qrcode" defer></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center px-4 py-8">
+<body class="bg-gray-100 min-h-screen flex items-center justify-center px-4">
 
-  <div class="bg-white shadow-xl rounded-2xl p-6 max-w-md w-full text-center">
-    <h1 class="text-2xl font-bold mb-4 text-blue-700">🎟️ Validador de Tickets</h1>
-    <p class="text-gray-600 mb-2">Escanea tu código QR para validar tu acceso a la <strong>Feria de Emprendimiento</strong>.</p>
+  <div class="bg-white shadow-lg rounded-xl p-6 w-full max-w-md text-center">
+    <h1 class="text-2xl font-bold text-blue-700 mb-2">🎟️ Feria de Emprendimiento</h1>
+    <p class="text-sm text-gray-600 mb-4">Escanea tu código QR para validar el ticket</p>
 
-    <div id="reader" class="mx-auto my-4 rounded-lg overflow-hidden border-2 border-blue-200"></div>
+    <div id="reader" class="mx-auto w-full rounded-lg overflow-hidden border border-blue-300"></div>
 
-    <div id="mensaje" class="text-center text-lg font-medium mt-4"></div>
+    <div id="mensaje" class="mt-4 text-lg font-semibold"></div>
 
-    <button id="reiniciar" class="mt-4 bg-blue-600 text-white py-2 px-4 rounded hidden">
-      Escanear otro
+    <button id="reiniciar" class="hidden mt-4 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">
+      🔁 Escanear otro
     </button>
   </div>
 
   <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbXXXXXX/exec"; // ← Reemplaza con tu URL
+    const API_URL = "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec"; // Reemplaza con tu URL real
 
-    const mensajeEl = document.getElementById("mensaje");
+    const mensaje = document.getElementById("mensaje");
     const reiniciarBtn = document.getElementById("reiniciar");
-    let html5QrCode;
+    let scanner;
 
     function mostrarMensaje(texto, tipo = "info") {
       const colores = {
-        info: "text-gray-800",
         success: "text-green-600",
+        warning: "text-yellow-600",
         error: "text-red-600",
-        warning: "text-yellow-600"
+        info: "text-blue-600"
       };
-      mensajeEl.className = `mt-4 text-lg font-semibold ${colores[tipo]}`;
-      mensajeEl.textContent = texto;
+      mensaje.className = `mt-4 text-lg font-bold ${colores[tipo] || "text-gray-800"}`;
+      mensaje.textContent = texto;
     }
 
-    function detenerScanner() {
-      html5QrCode.stop().then(() => {
-        document.getElementById("reader").innerHTML = "";
-        reiniciarBtn.classList.remove("hidden");
-      });
-    }
+    function iniciarScanner() {
+      scanner = new Html5Qrcode("reader");
 
-    function escanearQR() {
-      html5QrCode = new Html5Qrcode("reader");
       Html5Qrcode.getCameras().then(devices => {
-        if (devices && devices.length) {
-          html5QrCode.start(
-            devices[0].id,
-            { fps: 10, qrbox: 250 },
-            (qrCodeMessage) => {
-              detenerScanner();
-              validarTicket(qrCodeMessage.trim());
-            }
-          );
-        } else {
-          mostrarMensaje("No se detectó cámara", "error");
+        if (devices.length === 0) {
+          mostrarMensaje("No se encontró cámara", "error");
+          return;
         }
+        const cameraId = devices[0].id;
+        scanner.start(
+          cameraId,
+          { fps: 10, qrbox: 250 },
+          qrCodeMessage => {
+            scanner.stop().then(() => {
+              validarTicket(qrCodeMessage.trim());
+            });
+          },
+          error => {
+            // Puedes mostrar errores de escaneo si deseas
+          }
+        );
       }).catch(err => mostrarMensaje("Error al acceder a la cámara", "error"));
     }
 
     function validarTicket(id) {
+      mostrarMensaje("Validando ticket...", "info");
+
       fetch(`${API_URL}?id=${id}`)
         .then(res => res.json())
         .then(data => {
-          if (data.error) {
-            mostrarMensaje("❌ Ticket no encontrado", "error");
+          if (data.error || !data.usado) {
+            mostrarMensaje("❌ Ticket inválido o no registrado", "error");
+            reiniciarBtn.classList.remove("hidden");
             return;
           }
-          if (data.usado === "Sí") {
-            mostrarMensaje("⚠️ Ticket ya ha sido utilizado", "warning");
-          } else {
-            mostrarMensaje(`✅ Ticket válido — Valor: ${data.valor}`, "success");
 
-            // Marcar como usado automáticamente
+          if (data.usado === "Sí") {
+            mostrarMensaje("⚠️ Ticket ya fue utilizado", "warning");
+          } else {
+            mostrarMensaje(`✅ Válido — Valor: ${data.valor}`, "success");
+
+            // Marcar como usado (opcional)
             fetch(API_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: id })
+              body: JSON.stringify({ id })
             });
           }
+          reiniciarBtn.classList.remove("hidden");
         })
-        .catch(err => mostrarMensaje("❌ Error al validar el ticket", "error"));
+        .catch(err => {
+          mostrarMensaje("Error al validar ticket", "error");
+          reiniciarBtn.classList.remove("hidden");
+        });
     }
 
     reiniciarBtn.addEventListener("click", () => {
-      mensajeEl.textContent = "";
+      mensaje.textContent = "";
       reiniciarBtn.classList.add("hidden");
-      escanearQR();
+      document.getElementById("reader").innerHTML = "";
+      iniciarScanner();
     });
 
-    escanearQR();
+    window.onload = iniciarScanner;
   </script>
-</body>
-</html>
-
 </body>
 </html>
